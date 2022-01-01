@@ -1,0 +1,20 @@
+build:
+  - shell: echo build
+  - description: build stuff
+
+server:
+  - shell: sleep 1; echo server
+
+client:
+  - description: server
+  - shell: echo client
+
+straw-task:
+  - task: build
+
+run:
+  - task: build
+  - parallel:
+    - task: server
+    - task: client
+    - task: straw-task
