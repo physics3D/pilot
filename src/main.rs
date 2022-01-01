@@ -3,11 +3,12 @@ use std::{
     error::Error,
     fs::read_to_string,
     io::{BufRead, BufReader},
-    process::{exit, Command, Stdio},
+    process::{exit, Command},
     sync::atomic::{AtomicU32, Ordering},
     thread,
 };
 
+use ptyprocess::PtyProcess;
 use yaml_rust::{Yaml, YamlLoader};
 
 const NOT_VALID: &str = "This is not a valid Pilotfile";
@@ -76,31 +77,20 @@ fn run_shell(command: String, task_name: String, quiet_tasks: Vec<String>, raw: 
             .wait()
             .or_msg(&format!("Task {} failed", task_name));
     } else {
-        let mut process = Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .or_msg(&format!("Failed to run task {}", task_name));
+        let mut std_command = Command::new("sh");
+        std_command.arg("-c").arg(command);
 
-        // print all output to shell
+        let process =
+            PtyProcess::spawn(std_command).or_msg(&format!("Failed to run task {}", task_name));
 
-        // stdout
-        thread::spawn(move || {
-            if !quiet_tasks.contains(&task_name) {
-                BufReader::new(process.stdout.or_msg("Could not get stdout"))
-                    .lines()
-                    .filter_map(|line| line.ok())
-                    .for_each(|line| println!("{}{}:\x1b[0m {}", color, task_name, line));
-            }
-        });
+        if !quiet_tasks.contains(&task_name) {
+            BufReader::new(process.get_pty_stream().or_msg("Could not get pty output"))
+                .lines()
+                .filter_map(|line| line.ok())
+                .for_each(|line| println!("{}{}:\x1b[0m {}", color, task_name, line));
+        }
 
-        // stderr
-        BufReader::new(process.stderr.take().or_msg("Could not get stderr"))
-            .lines()
-            .filter_map(|line| line.ok())
-            .for_each(|line| println!("{}{}:\x1b[0m {}", color_clone, task_name_clone, line));
+        process.wait().or_msg(&format!("Task {} failed", task_name));
     }
 
     // the process exited
