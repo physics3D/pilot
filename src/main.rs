@@ -8,6 +8,7 @@ use std::{
     thread,
 };
 
+use chrono::Local;
 use ptyprocess::PtyProcess;
 use yaml_rust::{Yaml, YamlLoader};
 
@@ -59,14 +60,17 @@ impl<T> OrMsg<T> for Option<T> {
 
 static INDEX: AtomicU32 = AtomicU32::new(1);
 
-fn run_shell(command: String, task_name: String, quiet_tasks: Vec<String>, raw: bool) {
+fn run_shell(
+    command: String,
+    task_name: String,
+    quiet_tasks: Vec<String>,
+    raw: bool,
+    timestamp: bool,
+) {
     // cycle through shell colors
     // credit: https://github.com/chrismytton/shoreman/
     let current_index = INDEX.fetch_add(1, Ordering::SeqCst);
     let color = "\x1b[0;".to_string() + &(31 + current_index % 7).to_string() + "m";
-
-    let task_name_clone = task_name.clone();
-    let color_clone = color.clone();
 
     if raw {
         Command::new("sh")
@@ -87,14 +91,35 @@ fn run_shell(command: String, task_name: String, quiet_tasks: Vec<String>, raw: 
             BufReader::new(process.get_pty_stream().or_msg("Could not get pty output"))
                 .lines()
                 .filter_map(|line| line.ok())
-                .for_each(|line| println!("{}{}:\x1b[0m {}", color, task_name, line));
+                .for_each(|line| {
+                    if timestamp {
+                        println!(
+                            "{} {}{}:\x1b[0m {}",
+                            Local::now().format("%H:%M:%S"),
+                            color,
+                            task_name,
+                            line
+                        )
+                    } else {
+                        println!("{}{}:\x1b[0m {}", color, task_name, line)
+                    }
+                });
         }
 
         process.wait().or_msg(&format!("Task {} failed", task_name));
     }
 
     // the process exited
-    println!("{}{}\x1b[0m finished", color_clone, task_name_clone);
+    if timestamp {
+        println!(
+            "{} {}{}\x1b[0m finished",
+            Local::now().format("%H:%M:%S"),
+            color,
+            task_name
+        );
+    } else {
+        println!("{}{}\x1b[0m finished", color, task_name);
+    }
 
     // subtract one from the index
     INDEX.fetch_sub(1, Ordering::SeqCst);
@@ -107,6 +132,7 @@ fn run_task(
     task_name: String,
     quiet_tasks: Vec<String>,
     raw: bool,
+    timestamp: bool,
 ) {
     match task.0.as_str().or_msg(NOT_VALID) {
         "shell" => run_shell(
@@ -114,6 +140,7 @@ fn run_task(
             task_name,
             quiet_tasks,
             raw,
+            timestamp,
         ),
         "task" => {
             let sub_task = task.1.as_str().or_msg(NOT_VALID).to_string();
@@ -123,6 +150,7 @@ fn run_task(
                 task_prefix + " > " + &sub_task,
                 quiet_tasks,
                 raw,
+                timestamp,
             );
         }
         "parallel" => {
@@ -149,6 +177,7 @@ fn run_task(
                         task_name_clone,
                         quiet_tasks_clone,
                         raw,
+                        timestamp,
                     );
                 }));
             }
@@ -171,8 +200,13 @@ fn cli_run_task(
     task_prefix: String,
     quiet_tasks: Vec<String>,
     raw: bool,
+    timestamp: bool,
 ) {
-    println!("> {}", task_prefix);
+    if timestamp {
+        println!("{} > {}", Local::now().format("%H:%M:%S"), task_prefix);
+    } else {
+        println!("> {}", task_prefix);
+    }
 
     let found_tasks: Vec<_> = yaml
         .as_hash()
@@ -201,6 +235,7 @@ fn cli_run_task(
                     task.clone(),
                     quiet_tasks.clone(),
                     raw,
+                    timestamp,
                 );
             }
         }
@@ -260,6 +295,7 @@ fn main() {
                 let mut tasks_to_run = vec![];
                 let mut quiet_tasks = vec![];
                 let mut raw = false;
+                let mut timestamp = false;
 
                 let mut args = args().skip(1);
 
@@ -273,6 +309,11 @@ fn main() {
                         continue;
                     }
 
+                    if arg == "-t" || arg == "--timestamp" {
+                        timestamp = true;
+                        continue;
+                    }
+
                     tasks_to_run.push(arg);
                 }
 
@@ -282,11 +323,23 @@ fn main() {
                         continue;
                     }
 
+                    if arg == "-t" || arg == "--timestamp" {
+                        timestamp = true;
+                        continue;
+                    }
+
                     quiet_tasks.push(arg);
                 }
 
                 for task in tasks_to_run {
-                    cli_run_task(yaml.clone(), task.clone(), task, quiet_tasks.clone(), raw);
+                    cli_run_task(
+                        yaml.clone(),
+                        task.clone(),
+                        task,
+                        quiet_tasks.clone(),
+                        raw,
+                        timestamp,
+                    );
                 }
             }
         }
