@@ -60,6 +60,60 @@ impl<T> OrMsg<T> for Option<T> {
 
 static INDEX: AtomicU32 = AtomicU32::new(1);
 
+fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(
+    mut line: String,
+) -> String {
+    fn do_remove(i: usize, char: char, line: &mut String) -> u32 {
+        if char != '\u{1b}' && char != '\u{1B}' {
+            return 0;
+        }
+
+        let mut iter = line.chars().skip(i + 1);
+        let mut removals: u32 = 1;
+        while let Some(char) = iter.next() {
+            if char == 'm' {
+                return 0;
+            }
+            if char != '[' && char != ';' && !char.is_ascii_digit() {
+                removals += 1;
+
+                if char == 'G' {
+                    // we assume the G was part of the ansi escape sequence \u{1b}2K\u{1b}[0G
+                    // which clears the line and moves the cursor to the front of the line
+                    // so we delete the first part of the string too
+                    *line = line[(i + removals as usize)..line.len()].to_string();
+                    return 1;
+                    // if let Some(slice) = line.get((i - 1)..i) {
+                    //     println!("{}", slice.to_string());
+                    //     if let Ok(index) = slice.parse::<usize>() {
+                    //         *line = line[0..(index - 1)].to_string();
+                    //     }
+                    // }
+                }
+
+                break;
+            }
+
+            removals += 1;
+        }
+
+        for _ in 0..removals {
+            line.remove(i);
+        }
+
+        removals
+    }
+
+    let mut i = 0;
+    while let Some(char) = line.get(i..(i + 1)) {
+        let removals = do_remove(i, char.chars().nth(0).unwrap().clone(), &mut line);
+        if removals == 0 {
+            i += 1;
+        }
+    }
+    line
+}
+
 fn run_shell(
     command: String,
     task_name: String,
@@ -91,6 +145,7 @@ fn run_shell(
             BufReader::new(process.get_pty_stream().or_msg("Could not get pty output"))
                 .lines()
                 .filter_map(|line| line.ok())
+                .map(|line| sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(line))
                 .for_each(|line| {
                     if timestamp {
                         println!(
@@ -101,7 +156,7 @@ fn run_shell(
                             line
                         )
                     } else {
-                        println!("{}{}:\x1b[0m {}", color, task_name, line)
+                        println!("{}{}:\x1b[0m {}", color, task_name, line);
                     }
                 });
         }
