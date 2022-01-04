@@ -63,16 +63,16 @@ static INDEX: AtomicU32 = AtomicU32::new(1);
 fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(
     mut line: String,
 ) -> String {
-    fn do_remove(i: usize, char: char, line: &mut String) -> u32 {
+    fn do_remove(i: usize, char: char, line: &mut String) -> bool {
         if char != '\u{1b}' && char != '\u{1B}' {
-            return 0;
+            return false;
         }
 
         let mut iter = line.chars().skip(i + 1);
         let mut removals: u32 = 1;
         while let Some(char) = iter.next() {
             if char == 'm' {
-                return 0;
+                return false;
             }
             if char != '[' && char != ';' && !char.is_ascii_digit() {
                 removals += 1;
@@ -82,7 +82,7 @@ fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_
                     // which clears the line and moves the cursor to the front of the line
                     // so we delete the first part of the string too
                     *line = line[(i + removals as usize)..line.len()].to_string();
-                    return 1;
+                    return true;
                     // if let Some(slice) = line.get((i - 1)..i) {
                     //     println!("{}", slice.to_string());
                     //     if let Ok(index) = slice.parse::<usize>() {
@@ -101,13 +101,13 @@ fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_
             line.remove(i);
         }
 
-        removals
+        removals > 0
     }
 
     let mut i = 0;
     while let Some(char) = line.get(i..(i + 1)) {
-        let removals = do_remove(i, char.chars().nth(0).unwrap().clone(), &mut line);
-        if removals == 0 {
+        // only increase index if no removals (otherwise there is a new char on the index)
+        if !do_remove(i, char.chars().nth(0).unwrap().clone(), &mut line) {
             i += 1;
         }
     }
@@ -162,18 +162,6 @@ fn run_shell(
         }
 
         process.wait().or_msg(&format!("Task {} failed", task_name));
-    }
-
-    // the process exited
-    if timestamp {
-        println!(
-            "{} {}{}\x1b[0m finished",
-            Local::now().format("%H:%M:%S"),
-            color,
-            task_name
-        );
-    } else {
-        println!("{}{}\x1b[0m finished", color, task_name);
     }
 
     // subtract one from the index
@@ -292,6 +280,17 @@ fn cli_run_task(
                     raw,
                     timestamp,
                 );
+            }
+
+            // the process exited
+            if timestamp {
+                println!(
+                    "{} finished {}",
+                    Local::now().format("%H:%M:%S"),
+                    task_prefix
+                );
+            } else {
+                println!("finished {}", task_prefix);
             }
         }
         _ => {
