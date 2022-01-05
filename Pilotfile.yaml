@@ -1,0 +1,14 @@
+build:
+  - shell: cargo build
+
+release:
+  - shell: cargo build --release
+
+install:
+  - shell: cargo install --path .
+
+test:
+  - shell: cargo test
+
+clean:
+  - shell: cargo clean

@@ -182,7 +182,7 @@ fn run_task(
             task.1.as_str().or_msg(NOT_VALID).to_string(),
             task_name,
             quiet_tasks,
-            raw,
+            true,
             timestamp,
         ),
         "task" => {
@@ -192,7 +192,7 @@ fn run_task(
                 sub_task.clone(),
                 task_prefix + " > " + &sub_task,
                 quiet_tasks,
-                raw,
+                true,
                 timestamp,
             );
         }

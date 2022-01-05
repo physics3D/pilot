@@ -15,6 +15,6 @@ straw-task:
 run:
   - task: build
   - parallel:
-    - task: server
     - task: client
+    - task: server
     - task: straw-task
