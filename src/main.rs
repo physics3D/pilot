@@ -325,7 +325,7 @@ fn task_to_string(task: (&Yaml, &Yaml)) -> String {
 }
 
 fn cli_list_tasks(yaml: &Yaml) {
-    println!("Avalaible tasks:");
+    println!("Available tasks:");
 
     for task in yaml.as_hash().or_msg(NOT_VALID) {
         println!("\t{}", task_to_string(task));
