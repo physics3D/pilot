@@ -1,9 +1,11 @@
 build:
-  - shell: echo build
+  - shell: sleep 1; echo build
   - description: build stuff
 
 server:
-  - shell: sleep 1; echo server
+  - shell: |
+      sleep 2
+      echo server
 
 client:
   - description: server
@@ -18,3 +20,8 @@ run:
     - task: server
     - task: client
     - task: straw-task
+
+raw:
+  - shell: |
+      read INPUT
+      echo $INPUT
