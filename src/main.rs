@@ -114,6 +114,23 @@ fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_
     line
 }
 
+#[cfg(target_family = "windows")]
+fn get_shell() -> Command {
+    let mut command = Command::new(r"C:\Windows\System32\powershell.exe");
+    command.arg("-c");
+    command
+}
+
+#[cfg(not(target_family = "windows"))]
+fn get_shell() -> Command {
+    use std::env;
+
+    let shell = env::var("SHELL").unwrap_or("sh".to_string());
+    let mut command = Command::new(shell);
+    command.arg("-c");
+    command
+}
+
 fn run_shell(
     command: String,
     task_name: String,
@@ -127,16 +144,15 @@ fn run_shell(
     let color = "\x1b[0;".to_string() + &(31 + current_index % 7).to_string() + "m";
 
     if raw {
-        Command::new("sh")
-            .arg("-c")
+        get_shell()
             .arg(command)
             .spawn()
             .or_msg(&format!("Failed to run task {}", task_name))
             .wait()
             .or_msg(&format!("Task {} failed", task_name));
     } else {
-        let mut std_command = Command::new("sh");
-        std_command.arg("-c").arg(command);
+        let mut std_command = get_shell();
+        std_command.arg(command);
 
         let process =
             PtyProcess::spawn(std_command).or_msg(&format!("Failed to run task {}", task_name));
