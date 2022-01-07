@@ -3,8 +3,8 @@ use std::{
     error::Error,
     fs::read_to_string,
     io::{BufRead, BufReader},
-    process::{exit, Command},
-    sync::atomic::{AtomicU32, Ordering},
+    process::{exit, Command, Stdio},
+    sync::atomic::{AtomicU32, Ordering, AtomicUsize},
     thread,
 };
 
@@ -59,6 +59,7 @@ impl<T> OrMsg<T> for Option<T> {
 }
 
 static INDEX: AtomicU32 = AtomicU32::new(1);
+static PADDING: AtomicUsize = AtomicUsize::new(0);
 
 fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(
     mut line: String,
@@ -143,37 +144,46 @@ fn run_shell(
     let current_index = INDEX.fetch_add(1, Ordering::SeqCst);
     let color = "\x1b[0;".to_string() + &(31 + current_index % 7).to_string() + "m";
 
+    let mut std_command = get_shell();
+    std_command.arg(command);
+
+    let quiet = quiet_tasks.contains(&task_name);
+
     if raw {
-        get_shell()
-            .arg(command)
+        if quiet {
+            std_command.stdout(Stdio::null());
+            std_command.stderr(Stdio::null());
+        }
+
+        std_command
             .spawn()
             .or_msg(&format!("Failed to run task {}", task_name))
             .wait()
             .or_msg(&format!("Task {} failed", task_name));
     } else {
-        let mut std_command = get_shell();
-        std_command.arg(command);
-
         let process =
             PtyProcess::spawn(std_command).or_msg(&format!("Failed to run task {}", task_name));
 
-        if !quiet_tasks.contains(&task_name) {
+        if !quiet {
+            let this_padding = task_name.len() + 1;
+
+            PADDING.fetch_max(this_padding, Ordering::SeqCst);
+
             BufReader::new(process.get_pty_stream().or_msg("Could not get pty output"))
                 .lines()
                 .filter_map(|line| line.ok())
                 .map(|line| sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(line))
                 .for_each(|line| {
+                    let mut time_prefix = "".to_string();
+
                     if timestamp {
-                        println!(
-                            "{} {}{}:\x1b[0m {}",
-                            Local::now().format("%H:%M:%S"),
-                            color,
-                            task_name,
-                            line
-                        )
-                    } else {
-                        println!("{}{}:\x1b[0m {}", color, task_name, line);
+                            time_prefix = Local::now().format("%H:%M:%S").to_string() + " ";
                     }
+
+                    let padding = PADDING.load(Ordering::SeqCst);
+                    let padding_prefix = " ".repeat(padding.saturating_sub(this_padding));
+                    
+                    println!("{}{}{}:\x1b[0m{} {}", time_prefix, color, task_name, padding_prefix, line);
                 });
         }
 

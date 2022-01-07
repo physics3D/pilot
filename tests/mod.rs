@@ -53,7 +53,7 @@ fn run_multiple_tasks() {
 \x1b[0;32mclient:\x1b[0m client
 finished client
 > build
-\x1b[0;32mbuild:\x1b[0m build
+\x1b[0;32mbuild:\x1b[0m  build
 finished build\n",
         );
 }
@@ -87,7 +87,7 @@ finished run > build
 > run > straw-task > build
 \x1b[0;33mclient:\x1b[0m client
 finished run > client
-\x1b[0;34mbuild:\x1b[0m build
+\x1b[0;34mbuild:\x1b[0m  build
 finished run > straw-task > build
 finished run > straw-task
 \x1b[0;32mserver:\x1b[0m server
