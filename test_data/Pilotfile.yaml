@@ -25,3 +25,14 @@ raw:
   - shell: |
       read INPUT
       echo $INPUT
+
+raw-explicit:
+  - raw: true
+  - shell: |
+      read INPUT
+      echo $INPUT
+  - task: not-raw-explicit
+
+not-raw-explicit:
+  - raw: false
+  - shell: echo not raw

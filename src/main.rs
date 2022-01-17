@@ -4,7 +4,7 @@ use std::{
     fs::read_to_string,
     io::{BufRead, BufReader},
     process::{exit, Command, Stdio},
-    sync::atomic::{AtomicU32, Ordering, AtomicUsize},
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     thread,
 };
 
@@ -182,7 +182,7 @@ fn run_shell(
 
                     let padding = PADDING.load(Ordering::SeqCst);
                     let padding_prefix = " ".repeat(padding.saturating_sub(this_padding));
-                    
+
                     println!("{}{}{}:\x1b[0m{} {}", time_prefix, color, task_name, padding_prefix, line);
                 });
         }
@@ -200,7 +200,7 @@ fn run_task(
     task_prefix: String,
     task_name: String,
     quiet_tasks: Vec<String>,
-    raw: bool,
+    raw: &mut bool,
     timestamp: bool,
 ) {
     match task.0.as_str().or_msg(NOT_VALID) {
@@ -208,7 +208,7 @@ fn run_task(
             task.1.as_str().or_msg(NOT_VALID).to_string(),
             task_name,
             quiet_tasks,
-            raw,
+            raw.clone(),
             timestamp,
         ),
         "task" => {
@@ -218,7 +218,7 @@ fn run_task(
                 sub_task.clone(),
                 task_prefix + " > " + &sub_task,
                 quiet_tasks,
-                raw,
+                raw.clone(),
                 timestamp,
             );
         }
@@ -238,6 +238,8 @@ fn run_task(
                 let task_name_clone = task_name.clone();
                 let quiet_tasks_clone = quiet_tasks.clone();
 
+                let mut raw_clone = raw.clone();
+
                 threads.push(thread::spawn(move || {
                     run_task(
                         sub_task_tuple,
@@ -245,7 +247,7 @@ fn run_task(
                         task_prefix_clone,
                         task_name_clone,
                         quiet_tasks_clone,
-                        raw,
+                        &mut raw_clone,
                         timestamp,
                     );
                 }));
@@ -254,6 +256,9 @@ fn run_task(
             for thread in threads {
                 thread.join().unwrap();
             }
+        }
+        "raw" => {
+            *raw = task.1.as_bool().or_msg(NOT_VALID);
         }
         "description" => {}
         _ => {
@@ -268,7 +273,7 @@ fn cli_run_task(
     task: String,
     task_prefix: String,
     quiet_tasks: Vec<String>,
-    raw: bool,
+    mut raw: bool,
     timestamp: bool,
 ) {
     if timestamp {
@@ -303,7 +308,7 @@ fn cli_run_task(
                     task_prefix.clone(),
                     task.clone(),
                     quiet_tasks.clone(),
-                    raw,
+                    &mut raw,
                     timestamp,
                 );
             }

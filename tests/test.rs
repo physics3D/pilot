@@ -15,7 +15,9 @@ fn list_tasks() {
 \tclient - server
 \tstraw-task
 \trun
-\traw\n",
+\traw
+\traw-explicit
+\tnot-raw-explicit\n",
     );
 }
 
@@ -108,4 +110,23 @@ fn run_raw() {
         .success()
         .stderr("")
         .stdout("> raw\n".to_string() + TEST_INPUT + "\nfinished raw\n");
+}
+
+#[test]
+fn run_tasks_explicit_raw_not_raw() {
+    run()
+        .arg("raw-explicit")
+        .write_stdin(TEST_INPUT.to_string() + "\n")
+        .assert()
+        .success()
+        .stderr("")
+        .stdout(
+            "> raw-explicit\n".to_string()
+                + TEST_INPUT
+                + "
+> raw-explicit > not-raw-explicit
+\x1b[0;32mnot-raw-explicit:\x1b[0m not raw
+finished raw-explicit > not-raw-explicit
+finished raw-explicit\n",
+        );
 }
