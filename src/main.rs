@@ -61,9 +61,7 @@ impl<T> OrMsg<T> for Option<T> {
 static INDEX: AtomicU32 = AtomicU32::new(1);
 static PADDING: AtomicUsize = AtomicUsize::new(0);
 
-fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(
-    mut line: String,
-) -> String {
+fn sanitize_string(mut line: String) -> String {
     fn do_remove(i: usize, char: char, line: &mut String) -> bool {
         if char != '\u{1b}' && char != '\u{1B}' {
             return false;
@@ -72,27 +70,22 @@ fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_
         let mut iter = line.chars().skip(i + 1);
         let mut removals: u32 = 1;
         while let Some(char) = iter.next() {
+            // it is a coloring sequence, abort
             if char == 'm' {
                 return false;
             }
             if char != '[' && char != ';' && !char.is_ascii_digit() {
                 removals += 1;
 
-                if char == 'G' {
-                    // we assume the G was part of the ansi escape sequence \u{1b}2K\u{1b}[0G
-                    // which clears the line and moves the cursor to the front of the line
-                    // so we delete the first part of the string too
-                    *line = line[(i + removals as usize)..line.len()].to_string();
-                    return true;
-                    // if let Some(slice) = line.get((i - 1)..i) {
-                    //     println!("{}", slice.to_string());
-                    //     if let Ok(index) = slice.parse::<usize>() {
-                    //         *line = line[0..(index - 1)].to_string();
-                    //     }
-                    // }
-                }
-
-                break;
+                // we boldly assume the escape sequence wanted to delete the line so we do so
+                *line = line[(i + removals as usize)..line.len()].to_string();
+                return true;
+                // if let Some(slice) = line.get((i - 1)..i) {
+                //     println!("{}", slice.to_string());
+                //     if let Ok(index) = slice.parse::<usize>() {
+                //         *line = line[0..(index - 1)].to_string();
+                //     }
+                // }
             }
 
             removals += 1;
@@ -108,7 +101,9 @@ fn sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_
     let mut i = 0;
     while let Some(char) = line.get(i..(i + 1)) {
         // only increase index if no removals (otherwise there is a new char on the index)
-        if !do_remove(i, char.chars().nth(0).unwrap().clone(), &mut line) {
+        if do_remove(i, char.chars().nth(0).unwrap().clone(), &mut line) {
+            i = 0;
+        } else {
             i += 1;
         }
     }
@@ -172,18 +167,21 @@ fn run_shell(
             BufReader::new(process.get_pty_stream().or_msg("Could not get pty output"))
                 .lines()
                 .filter_map(|line| line.ok())
-                .map(|line| sanitize_me_this_terminal_string_but_please_preserve_the_colors_oh_and_other_reasonable_ansi_escape_sequences_too(line))
+                .map(|line| sanitize_string(line))
                 .for_each(|line| {
                     let mut time_prefix = "".to_string();
 
                     if timestamp {
-                            time_prefix = Local::now().format("%H:%M:%S").to_string() + " ";
+                        time_prefix = Local::now().format("%H:%M:%S").to_string() + " ";
                     }
 
                     let padding = PADDING.load(Ordering::SeqCst);
                     let padding_prefix = " ".repeat(padding.saturating_sub(this_padding));
 
-                    println!("{}{}{}:\x1b[0m{} {}", time_prefix, color, task_name, padding_prefix, line);
+                    println!(
+                        "{}{}{}:\x1b[0m{} {}",
+                        time_prefix, color, task_name, padding_prefix, line
+                    );
                 });
         }
 
