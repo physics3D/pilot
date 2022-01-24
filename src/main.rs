@@ -13,7 +13,7 @@ use ptyprocess::PtyProcess;
 use yaml_rust::{Yaml, YamlLoader};
 
 const NOT_VALID: &str = "This is not a valid Pilotfile";
-const HELP_TEXT: &str = "pilot - a simple task runner/process manager
+const HELP_TEXT: &str = "pilot - a simple task runner / process manager
 
 USAGE:
     pilot [OPTIONS] [tasks]
@@ -24,6 +24,7 @@ FLAGS:
 OPTIONS:
     -q, --quiet <quiet-tasks>   run the following tasks without output (to run them, you still have to add them explicitly)
     -r, --raw                   just run the tasks, without any additional output processing (useful for interactive applications)
+    -t, --timestamp             print a timestamp at the beginning of each line
 
 ARGS:
     [tasks]                     the tasks you want to run
