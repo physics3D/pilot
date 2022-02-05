@@ -1,8 +1,9 @@
 use std::{
-    env::args,
+    env::{self, args},
     error::Error,
     fs::read_to_string,
     io::{BufRead, BufReader},
+    path::PathBuf,
     process::{exit, Command, Stdio},
     sync::atomic::{AtomicU32, AtomicUsize, Ordering},
     thread,
@@ -120,8 +121,6 @@ fn get_shell() -> Command {
 
 #[cfg(not(target_family = "windows"))]
 fn get_shell() -> Command {
-    use std::env;
-
     let shell = env::var("SHELL").unwrap_or("sh".to_string());
     let mut command = Command::new(shell);
     command.arg("-c");
@@ -363,7 +362,22 @@ fn cli_list_tasks(yaml: &Yaml) {
 }
 
 fn load_pilotfile() -> Yaml {
-    let file = read_to_string("Pilotfile.yaml").or_msg("Pilotfile.yaml not found");
+    let mut path = PathBuf::from(env::current_dir().or_msg("Could not read the current directory"));
+
+    loop {
+        path.push("Pilotfile.yaml");
+
+        if path.exists() {
+            break;
+        }
+
+        if !(path.pop() && path.pop()) {
+            eprintln!("Pilotfile.yaml not found");
+            exit(1);
+        }
+    }
+
+    let file = read_to_string(path).or_msg("Pilotfile.yaml not found");
     let vec = YamlLoader::load_from_str(&file).or_msg("That is not a valid Pilotfile");
     vec[0].clone()
 }

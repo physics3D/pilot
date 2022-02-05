@@ -130,3 +130,22 @@ finished raw-explicit > not-raw-explicit
 finished raw-explicit\n",
         );
 }
+
+#[test]
+fn find_pilotfile_in_parent_dir() {
+    let mut command = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+    command.current_dir(env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/sub_dir");
+
+    // basically same as list_tasks
+    command.assert().success().stderr("").stdout(
+        "Available tasks:
+\tbuild - build stuff
+\tserver
+\tclient - server
+\tstraw-task
+\trun
+\traw
+\traw-explicit
+\tnot-raw-explicit\n",
+    );
+}
