@@ -133,6 +133,7 @@ fn run_shell(
     quiet_tasks: Vec<String>,
     raw: bool,
     timestamp: bool,
+    dir: PathBuf,
 ) {
     // cycle through shell colors
     // credit: https://github.com/chrismytton/shoreman/
@@ -140,7 +141,7 @@ fn run_shell(
     let color = "\x1b[0;".to_string() + &(31 + current_index % 7).to_string() + "m";
 
     let mut std_command = get_shell();
-    std_command.arg(command);
+    std_command.arg(command).current_dir(dir);
 
     let quiet = quiet_tasks.contains(&task_name);
 
@@ -200,6 +201,7 @@ fn run_task(
     quiet_tasks: Vec<String>,
     raw: &mut bool,
     timestamp: bool,
+    dir: PathBuf,
 ) {
     match task.0.as_str().or_msg(NOT_VALID) {
         "shell" => run_shell(
@@ -208,6 +210,7 @@ fn run_task(
             quiet_tasks,
             raw.clone(),
             timestamp,
+            dir.clone(),
         ),
         "task" => {
             let sub_task = task.1.as_str().or_msg(NOT_VALID).to_string();
@@ -218,6 +221,7 @@ fn run_task(
                 quiet_tasks,
                 raw.clone(),
                 timestamp,
+                dir.clone(),
             );
         }
         "parallel" => {
@@ -237,6 +241,7 @@ fn run_task(
                 let quiet_tasks_clone = quiet_tasks.clone();
 
                 let mut raw_clone = raw.clone();
+                let dir_clone = dir.clone();
 
                 threads.push(thread::spawn(move || {
                     run_task(
@@ -247,6 +252,7 @@ fn run_task(
                         quiet_tasks_clone,
                         &mut raw_clone,
                         timestamp,
+                        dir_clone.clone(),
                     );
                 }));
             }
@@ -273,6 +279,7 @@ fn cli_run_task(
     quiet_tasks: Vec<String>,
     mut raw: bool,
     timestamp: bool,
+    dir: PathBuf,
 ) {
     if timestamp {
         println!("{} > {}", Local::now().format("%H:%M:%S"), task_prefix);
@@ -308,6 +315,7 @@ fn cli_run_task(
                     quiet_tasks.clone(),
                     &mut raw,
                     timestamp,
+                    dir.clone(),
                 );
             }
 
@@ -361,7 +369,7 @@ fn cli_list_tasks(yaml: &Yaml) {
     }
 }
 
-fn load_pilotfile() -> Yaml {
+fn get_pilotfile_dir() -> PathBuf {
     let mut path = PathBuf::from(env::current_dir().or_msg("Could not read the current directory"));
 
     loop {
@@ -377,6 +385,13 @@ fn load_pilotfile() -> Yaml {
         }
     }
 
+    path.pop();
+    path
+}
+
+fn load_pilotfile(mut path: PathBuf) -> Yaml {
+    path.push("Pilotfile.yaml");
+
     let file = read_to_string(path).or_msg("Pilotfile.yaml not found");
     let vec = YamlLoader::load_from_str(&file).or_msg("That is not a valid Pilotfile");
     vec[0].clone()
@@ -388,7 +403,9 @@ fn main() {
             if string == "-h" || string == "--help" {
                 println!("{}", HELP_TEXT);
             } else {
-                let yaml = load_pilotfile();
+                let pilotfile_dir = get_pilotfile_dir();
+
+                let yaml = load_pilotfile(pilotfile_dir.clone());
 
                 let mut tasks_to_run = vec![];
                 let mut quiet_tasks = vec![];
@@ -437,12 +454,16 @@ fn main() {
                         quiet_tasks.clone(),
                         raw,
                         timestamp,
+                        pilotfile_dir.clone(),
                     );
                 }
             }
         }
         None => {
-            let yaml = load_pilotfile();
+            let mut path = get_pilotfile_dir();
+            path.push("Pilotfile.yaml");
+
+            let yaml = load_pilotfile(path);
             cli_list_tasks(&yaml);
         }
     }
