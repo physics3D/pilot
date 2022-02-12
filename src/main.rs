@@ -460,8 +460,7 @@ fn main() {
             }
         }
         None => {
-            let mut path = get_pilotfile_dir();
-            path.push("Pilotfile.yaml");
+            let path = get_pilotfile_dir();
 
             let yaml = load_pilotfile(path);
             cli_list_tasks(&yaml);
